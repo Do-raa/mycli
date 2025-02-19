@@ -23,8 +23,7 @@ from rich.style import Style
 from rich.text import Text
 
 app = typer.Typer()
-console = Console() 
-
+console = Console()
 
 # Rich Configuration
 SUCCESS_STYLE = Style(color="green", bold=True)
@@ -124,36 +123,35 @@ class PowerShell(cmd.Cmd):
                 self.do_exit("")
 
     def onecmd(self, line: str) -> bool:
-            """Process command input, correct typos, and execute commands properly"""
-            if not line.strip():
-                return False
-
-            parts = shlex.split(line)
-            if not parts:
-                return False
-
-            cmd, args = parts[0], parts[1:]
-            original_cmd = cmd
-
-            # Command correction
-            if cmd not in self.commands:
-                closest = difflib.get_close_matches(cmd, self.commands, n=1, cutoff=0.7)
-                if closest:
-                    corrected = closest[0]
-                    console.print(f"[yellow]✅ Auto-correcting '{original_cmd}' to '{corrected}'[/]")
-                    cmd = corrected  # Use corrected command
-
-            # Check if it's a built-in command (implemented as do_<cmd>)
-            method_name = f"do_{cmd.replace('-', '_')}"
-            if hasattr(self, method_name):
-                return getattr(self, method_name)(" ".join(args))
-
-            # Run system command
-            undo_cmd = self.get_undo_command(cmd, args)
-            self.run_system_command(cmd, args, undo_cmd)
+        """Process command input, correct typos, and execute commands properly"""
+        if not line.strip():
             return False
 
-    
+        parts = shlex.split(line)
+        if not parts:
+            return False
+
+        cmd, args = parts[0], parts[1:]
+        original_cmd = cmd
+
+        # Command correction
+        if cmd not in self.commands:
+            closest = difflib.get_close_matches(cmd, self.commands, n=1, cutoff=0.7)
+            if closest:
+                corrected = closest[0]
+                console.print(f"[yellow]✅ Auto-correcting '{original_cmd}' to '{corrected}'[/]")
+                cmd = corrected  # Use corrected command
+
+        # Check if it's a built-in command (implemented as do_<cmd>)
+        method_name = f"do_{cmd.replace('-', '_')}"
+        if hasattr(self, method_name):
+            return getattr(self, method_name)(" ".join(args))
+
+        # Run system command
+        undo_cmd = self.get_undo_command(cmd, args)
+        self.run_system_command(cmd, args, undo_cmd)
+        return False
+
     def run_system_command(self, cmd: str, args: List[str], undo_cmd: str):
         """Execute system command and save undo action"""
         try:
@@ -179,9 +177,11 @@ class PowerShell(cmd.Cmd):
 
             process.wait()
 
-            if process.returncode == 0 and undo_cmd:
-                self.command_history.append((full_command, undo_cmd))  # Store command history
-            elif process.returncode != 0:
+            if process.returncode == 0:
+                if undo_cmd:
+                    self.command_history.append((full_command, undo_cmd))  # Store command history
+                self.print_success_message(cmd, args)
+            else:
                 console.print(f"[bold red]❌ Command failed (code {process.returncode})[/]")
 
         except FileNotFoundError:
@@ -189,23 +189,77 @@ class PowerShell(cmd.Cmd):
         except Exception as e:
             console.print(f"[bold red]❌ Error executing command: {str(e)}[/]")
 
+    def print_success_message(self, cmd: str, args: List[str]):
+        """Print meaningful success messages for specific commands"""
+        if cmd == "del":
+            console.print(f"[bold green]✅ Deleted file: {args[0]}[/]")
+        elif cmd == "mkdir":
+            console.print(f"[bold green]✅ Created directory: {args[0]}[/]")
+        elif cmd == "rmdir":
+            console.print(f"[bold green]✅ Deleted directory: {args[2]}[/]")
+        elif cmd == "copy":
+            console.print(f"[bold green]✅ Copied file: {args[0]} -> {args[1]}[/]")
+        elif cmd == "move":
+            console.print(f"[bold green]✅ Moved file: {args[0]} -> {args[1]}[/]")
+        elif cmd == "touch":
+            console.print(f"[bold green]✅ Created file: {args[0]}[/]")
+        elif cmd == "rename":
+            console.print(f"[bold green]✅ Renamed file: {args[0]} -> {args[1]}[/]")
+        elif cmd == "append":
+            console.print(f"[bold green]✅ Appended to file: {args[0]}[/]")
+        elif cmd == "set":
+            console.print(f"[bold green]✅ Set environment variable: {args[0]} = {args[1]}[/]")
+        else:
+            console.print(f"[bold green]✅ Command succeeded: {cmd} {' '.join(args)}[/]")
+
     def get_undo_command(self, cmd: str, args: List[str]) -> str:
         """Generate undo commands for supported operations"""
         if cmd == "mkdir" and args:
-            return f"rmdir {' '.join(args)}"
+            dir_path = os.path.abspath(args[0])  # Ensure full path
+            return f'rmdir /s /q "{dir_path}"'  # Windows needs /s /q
+
         if cmd == "rmdir" and args:
-            return f"mkdir {' '.join(args)}"
+            dir_path = os.path.abspath(args[0])
+            return f'mkdir "{dir_path}"'  # Recreate the deleted directory
+
         if cmd == "del" and args:
+            # Only create a backup if the file exists
+            if os.path.exists(args[0]):
+                backup_path = f"backup_{args[0]}"
+                shutil.copy(args[0], backup_path)  # Backup before deleting
+                return f'copy "{backup_path}" "{args[0]}"'
+            return ""
+
+        if cmd == "copy" and len(args) == 2:
+            return f'del "{args[1]}"'
+
+        if cmd == "move" and len(args) == 2:
+            return f'move "{args[1]}" "{args[0]}"'
+
+        if cmd == "cd":
+            # Store the current directory before changing it
+            current_dir = os.getcwd()
+            return f'cd "{current_dir}"'  # Return to the previous working directory
+
+        if cmd == "touch" and args:
+            return f'del "{args[0]}"'
+
+        if cmd == "rename" and len(args) == 2:
+            return f'rename "{args[1]}" "{args[0]}"'
+
+        if cmd == "append" and len(args) == 2:
             backup_path = f"backup_{args[0]}"
             if os.path.exists(args[0]):
-                shutil.copy(args[0], backup_path)  # Create backup before delete
-                return f"copy {backup_path} {args[0]}"
-        if cmd == "copy" and len(args) == 2:
-            return f"del {args[1]}"
-        if cmd == "move" and len(args) == 2:
-            return f"move {args[1]} {args[0]}"
-        if cmd == "cd":
-            return f"cd {os.getcwd()}"
+                shutil.copy(args[0], backup_path)  # Backup before appending
+            return f'copy "{backup_path}" "{args[0]}"' if os.path.exists(backup_path) else ""
+
+        if cmd == "set" and len(args) == 2:
+            previous_value = os.getenv(args[0])
+            if previous_value is not None:
+                return f'set "{args[0]}={previous_value}"'
+            else:
+                return f'set "{args[0]}="'  # Unset if no previous value
+            
         return ""
 
     def do_undo(self, arg: str):
@@ -218,7 +272,9 @@ class PowerShell(cmd.Cmd):
         console.print(f"[bold cyan]🔄 Undoing: {last_command} -> {undo_command}[/]")
         
         if undo_command:
-            self.run_system_command(*shlex.split(undo_command), undo_cmd="")
+            # Split the undo_command into parts and pass them as arguments
+            command_parts = shlex.split(undo_command)
+            self.run_system_command(command_parts[0], command_parts[1:], undo_cmd="")
         else:
             console.print("[bold red]❌ Cannot undo this command[/]")
 
@@ -226,11 +282,94 @@ class PowerShell(cmd.Cmd):
     def do_cd(self, arg: str):
         """Change directory: cd <path>"""
         try:
+            # Store the current directory before changing it
+            current_dir = os.getcwd()
             os.chdir(arg)
             console.print(f"[bold cyan]📂 Current directory: [underline]{os.getcwd()}[/][/]")
+            
+            # Store the undo command in history
+            undo_command = f'cd "{current_dir}"'
+            self.command_history.append((f"cd {arg}", undo_command))
         except Exception as e:
             console.print(f"[bold red]❌ Directory error: {str(e)}[/]")
 
+    def do_touch(self, arg: str):
+        """Create an empty file: touch <filename>"""
+        try:
+            with open(arg, "w") as f:
+                pass  # Create an empty file
+            console.print(f"[bold green]✅ Created file: [cyan]{arg}[/][/]")
+            
+            # Store the undo command in history
+            undo_command = f'del "{arg}"'
+            self.command_history.append((f"touch {arg}", undo_command))
+        except Exception as e:
+            console.print(f"[bold red]❌ Error creating file: {str(e)}[/]")
+            
+    def do_rename(self, arg: str):
+        """Rename a file or directory: rename <old_name> <new_name>"""
+        try:
+            parts = shlex.split(arg)
+            if len(parts) != 2:
+                console.print("[bold red]❌ Usage: rename <old_name> <new_name>[/]")
+                return
+            
+            old_name, new_name = parts
+            os.rename(old_name, new_name)
+            console.print(f"[bold green]✅ Renamed: [cyan]{old_name}[/] -> [cyan]{new_name}[/][/]")
+            
+            # Store the undo command in history
+            undo_command = f'rename "{new_name}" "{old_name}"'
+            self.command_history.append((f"rename {arg}", undo_command))
+        except Exception as e:
+            console.print(f"[bold red]❌ Error renaming: {str(e)}[/]")
+            
+    def do_append(self, arg: str):
+        """Append text to a file: append <filename> <text>"""
+        try:
+            parts = shlex.split(arg)
+            if len(parts) < 2:
+                console.print("[bold red]❌ Usage: append <filename> <text>[/]")
+                return
+            
+            filename, text = parts[0], " ".join(parts[1:])
+            
+            # Backup the file before appending
+            backup_path = f"backup_{filename}"
+            shutil.copy(filename, backup_path)
+            
+            with open(filename, "a") as f:
+                f.write(text + "\n")
+            console.print(f"[bold green]✅ Appended to file: [cyan]{filename}[/][/]")
+            
+            # Store the undo command in history
+            undo_command = f'copy "{backup_path}" "{filename}"'
+            self.command_history.append((f"append {arg}", undo_command))
+        except Exception as e:
+            console.print(f"[bold red]❌ Error appending to file: {str(e)}[/]")
+    
+    def do_set(self, arg: str):
+        """Set an environment variable: set <variable> <value>"""
+        try:
+            parts = shlex.split(arg)
+            if len(parts) != 2:
+                console.print("[bold red]❌ Usage: set <variable> <value>[/]")
+                return
+            
+            variable, value = parts
+            previous_value = os.getenv(variable)
+            os.environ[variable] = value
+            console.print(f"[bold green]✅ Set environment variable: [cyan]{variable}[/] = [cyan]{value}[/][/]")
+            
+            # Store the undo command in history
+            if previous_value is not None:
+                undo_command = f'set "{variable}={previous_value}"'
+            else:
+                undo_command = f'set "{variable}="'  # Unset if no previous value
+            self.command_history.append((f"set {arg}", undo_command))
+        except Exception as e:
+            console.print(f"[bold red]❌ Error setting environment variable: {str(e)}[/]")
+            
     def do_exit(self, arg: str) -> bool:
         """Exit the shell"""
         console.print(Panel.fit("👋 Goodbye!", style="bold magenta"))
@@ -259,4 +398,4 @@ def start_shell():
     PowerShell().cmdloop()
 
 if __name__ == "__main__":
-    app() 
+    app()
