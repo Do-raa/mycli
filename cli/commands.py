@@ -67,18 +67,22 @@ def do_cd(self, arg: str, command_history):
 def do_ls(self, arg: str):
     """List files and directories with a loading indicator."""
     if arg in ["--help", "-h"]:
-                console.print("[bold cyan]Usage: ls[/]\n[bold #FF8C00]List files and directories in the current directory.")
-                return
+        console.print("[bold cyan]Usage: ls[/]\n[bold #FF8C00]List files and directories in the current directory.")
+        return
+    
     console.print("[bold cyan]📂 Scanning directory...[/]")
     
-    with console.status("[bold yellow]Listing files...[/]"):
-        time.sleep(1)  # Simulate loading time
-        files = os.listdir(arg if arg else os.getcwd())
-
+    # Simulate loading time
+    console.print("[bold yellow]Listing files...[/]")
+    time.sleep(1)  # Simulate loading time
+    
+    # List files and directories
+    files = os.listdir(arg if arg else os.getcwd())
+    
     console.print("\n[bold green]📁 Files & Directories:[/]")
     for file in files:
         console.print(f"  - {file}")
-
+    
     console.print("[bold green]✅ Listing complete![/] 🎉")
                 
 def do_dir(self, arg: str):
