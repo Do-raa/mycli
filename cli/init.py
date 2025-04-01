@@ -41,7 +41,7 @@ class ContextAwareCompleter(Completer):
 def initialize_powershell():
     commands = {
         # File & Directory Operations
-        "cd": "Change directory: cd <path>",
+        "cd": "Change directory: cd <path> and use 'cd ..' to navigate back to the previous directory",
         "ls": "List files and directories",
         "dir": "List files and directories (Windows alternative to 'ls')",
         "touch": "Create an empty file: touch <filename>",
@@ -74,7 +74,8 @@ def initialize_powershell():
         
         # Shell & Exit Commands
         "exit": "Exit the shell",
-        "help": "Show available commands or details for a specific command using '<command> --help'."
+        "help": "Show available commands or details for a specific command using '<command> --help'.",
+        "undo": "Undo the last command",
     }
     
     completer = ContextAwareCompleter(commands)

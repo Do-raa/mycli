@@ -2,6 +2,7 @@ import os
 import sys
 import shlex
 import subprocess
+import re
 from typing import List
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -30,7 +31,9 @@ INFO_STYLE = Style(color="blue", bold=True)
             
 ### 🚀 Enhanced Interactive Shell
 class PowerShell(cmd.Cmd):
-    prompt = "✨ > "
+    @property
+    def prompt(self):
+        return f"{os.getcwd()} > "
 
     def __init__(self):
         super().__init__()
@@ -40,7 +43,17 @@ class PowerShell(cmd.Cmd):
         self.intro = init_data["intro"]
         self.command_history = init_data["command_history"]
         self.history = init_data["history"]
-        
+        self.valid_flags = {
+            "taskkill": ["/PID", "/F", "/IM"],
+            "tasklist": ["/fi", "/v", "/svc", "/fo", "/nh"],
+            "ipconfig": ["/all", "/release", "/renew"],
+            "ping": ["-t", "-n", "-l", "-w", "-4", "-6"],
+            "netstat": ["-a", "-b", "-e", "-n", "-o", "-p", "-r", "-s"],
+            "nslookup": ["-querytype", "-timeout", "-debug", "-retry"],
+            "diskpart": ["/s"],
+            "chkdsk": ["/f", "/r", "/x"],
+            "wmic": ["/output"],
+        }
     
     def get_system_commands(self) -> List[str]:
         """Get available system commands with caching"""
@@ -77,7 +90,7 @@ class PowerShell(cmd.Cmd):
                 self.do_exit("")
 
     def onecmd(self, line: str) -> bool:
-        """Process command input, correct typos, and execute commands properly"""
+        """Process command input, handle typos, and correct minor syntax errors interactively."""
         if not line.strip():
             return False
 
@@ -88,22 +101,87 @@ class PowerShell(cmd.Cmd):
         cmd, args = parts[0], parts[1:]
         original_cmd = cmd
 
-        # Command correction
+        # ✅ Handle Unrecognized Commands with Suggestions
         if cmd not in self.commands:
-            closest = difflib.get_close_matches(cmd, self.commands, n=1, cutoff=0.7)
-            if closest:
-                corrected = closest[0]
-                console.print(f"[yellow]✅ Auto-correcting '{original_cmd}' to '{corrected}'[/]")
-                cmd = corrected  # Use corrected command
+            closest_matches = difflib.get_close_matches(cmd, self.commands, n=3, cutoff=0.6)
 
-        # Check if it's a built-in command (implemented as do_<cmd>)
+            if closest_matches:
+                confirm = Confirm.ask(f"[yellow]Did you mean '{closest_matches[0]}'?[/]", default=True)
+                if confirm:
+                    cmd = closest_matches[0]
+                else:
+                    console.print(f"[red]Unknown command: '{cmd}'[/]")
+                    return False
+            else:
+                console.print(f"[red]Unknown command: '{cmd}'[/]")
+                return False  
+        
+        # ✅ Handle --help or -h Globally (if not already handled by the command method)
+        if "--help" in args or "-h" in args:
+            method_name = f"do_{cmd.replace('-', '_')}"
+            if hasattr(self, method_name):
+                # Let the command method handle --help or -h
+                return getattr(self, method_name)(" ".join(args))
+            else:
+                # Fallback to global help message
+                console.print(f"[green]Usage: {self.commands[cmd]}[/]")
+                return False  # Skip further processing
+        
+        # ✅ Handle Misplaced or Invalid Flags in a Single Loop
+        corrected_args = []
+        invalid_flags = []
+        
+        for arg in args:
+            if arg.startswith("/") or arg.startswith("-"):
+                if not re.match(r"^[-/][a-zA-Z0-9]+$", arg):  # Basic flag validation
+                    console.print(f"[red]Invalid flag format detected: '{arg}'[/] (Expected format: -option or /option)")
+                    return False  # Stop immediately on invalid format
+
+                if arg not in self.valid_flags.get(cmd, []):
+                    invalid_flags.append(arg)
+            corrected_args.append(arg)
+
+        # ✅ Handle Invalid Flags with Auto-Suggestions
+        if invalid_flags:
+            console.print(f"[red]Invalid flags for '{cmd}': {', '.join(invalid_flags)}[/]")
+
+            if cmd in self.valid_flags and self.valid_flags[cmd]:
+                valid_flags = self.valid_flags[cmd]
+                console.print(f"[yellow]Valid flags for '{cmd}': {', '.join(valid_flags)}[/]")
+
+                for i, flag in enumerate(invalid_flags):
+                    closest_flag = difflib.get_close_matches(flag, valid_flags, n=1, cutoff=0.7)
+                    if closest_flag:
+                        auto_fix = Confirm.ask(f"[yellow]Did you mean '{closest_flag[0]}' instead of '{flag}'?[/]", default=True)
+                        if auto_fix:
+                            corrected_args = [closest_flag[0] if arg == flag else arg for arg in corrected_args]
+                            continue
+
+                    choice = Prompt.ask(
+                        f"Do you want to (1) replace '{flag}', (2) remove it, or (3) keep it?",
+                        choices=["1", "2", "3"],
+                        default="1"
+                    )
+                    if choice == "1":
+                        new_flag = Prompt.ask(
+                            f"Enter a valid flag to replace '{flag}'",
+                            choices=valid_flags,
+                            default=valid_flags[0]
+                        )
+                        corrected_args = [new_flag if arg == flag else arg for arg in corrected_args]
+                    elif choice == "2":
+                        corrected_args = [arg for arg in corrected_args if arg != flag]
+
+        # ✅ Handle Built-in Commands
         method_name = f"do_{cmd.replace('-', '_')}"
         if hasattr(self, method_name):
-            return getattr(self, method_name)(" ".join(args))
+            return getattr(self, method_name)(shlex.join(corrected_args))
 
-        # Run system command
-        undo_cmd = self.get_undo_command(cmd, args)
-        self.run_system_command(cmd, args, msg, undo_cmd)
+        # ✅ Run System Command
+        msg = f"Executing command: {cmd}"
+        undo_cmd = self.get_undo_command(cmd, corrected_args)
+        self.run_system_command(cmd, corrected_args, msg, undo_cmd)
+
         return False
 
     def run_system_command(self, cmd: str, args: List[str], msg: str, undo_cmd: str):
@@ -143,7 +221,17 @@ class PowerShell(cmd.Cmd):
 
             if process.returncode == 0:
                 if undo_cmd:
-                    self.command_history.append((full_command, undo_cmd))  # Store command history
+                    # Handle both string and dictionary format for undo commands
+                    if isinstance(undo_cmd, dict):
+                        self.command_history.append((full_command, undo_cmd))
+                    else:
+                        self.command_history.append((
+                            full_command,
+                            {
+                                "command": undo_cmd,
+                                "message": f"Undo: {full_command}"
+                            }
+                        ))
                 console.print(f"[bold green]✅ {msg}[/]")
             else:
                 console.print(f"[bold red]❌ Command failed (code {process.returncode})[/]")
@@ -197,34 +285,46 @@ class PowerShell(cmd.Cmd):
         return ""
       
     def do_undo(self, arg: str):
-            """Undo the last executed command"""
-            if not self.command_history:
-                console.print("[bold yellow]⚠  Nothing to undo[/]")
-                return
-            
-            last_command, undo_command = self.command_history.pop()  # Get last command
-            # Extract the folder or file name from the last command
-            if "rmdir" in last_command:
-                folder_name = last_command.split("rmdir ")[1].strip()
-                console.print(f"[bold cyan]🔄 Restoring '{folder_name}' folder...[/]")
-            elif "rm" in last_command:
-                file_name = last_command.split("rm ")[1].strip()
-                console.print(f"[bold cyan]🔄 Restoring '{file_name}' file...[/]")
+        """Undo the last executed command"""
+        if not self.command_history:
+            console.print("[bold yellow]⚠  Nothing to undo[/]")
+            return
+        
+        # Get last command and its undo info
+        last_command, undo_info = self.command_history.pop()
+        
+        if not undo_info or not isinstance(undo_info, dict):
+            console.print("[bold yellow]⚠  No undo action available for this command[/]")
+            return
+        
+        undo_command = undo_info.get("command", "")
+        undo_message = undo_info.get("message", f"Undoing: {last_command}")
+        
+        if not undo_command:
+            console.print("[bold yellow]⚠  No undo command available[/]")
+            return
+        
+        console.print(f"[bold cyan]🔄 {undo_message}[/]")
+        
+        # Split the undo command into parts
+        parts = shlex.split(undo_command)
+        if not parts:
+            console.print("[bold red]❌ Invalid undo command[/]")
+            return
+        
+        cmd, args = parts[0], parts[1:]
+        
+        # Execute the undo command without storing it in history
+        try:
+            method_name = f"do_{cmd.replace('-', '_')}"
+            if hasattr(self, method_name):
+                # Use the command method directly if it exists
+                getattr(self, method_name)(" ".join(args))
             else:
-                console.print(f"[bold cyan]🔄 Undoing: {last_command}[/]")
-            
-            # Check if the command requires confirmation
-            # destructive_commands = {"del", "rm", "rmdir"}
-            # if "undo" in self.destructive_commands and not self.confirm_destructive_action("undo", undo_command):
-            #     console.print("[bold yellow]🚫 Operation canceled.[/]")
-            #     return
-            #  # Check if the command requires confirmation
-            if undo_command and isinstance(undo_command, dict) and "command" in undo_command and "message" in undo_command:
-                # Split the undo_command into parts and pass them as arguments
-                command_parts = shlex.split(undo_command["command"])
-                self.run_system_command(command_parts[0], command_parts[1:], undo_command["message"], undo_cmd="")
-            else:
-                console.print("[bold red]❌ Cannot undo this command[/]")
+                # Fall back to system command
+                self.run_system_command(cmd, args, undo_message, undo_cmd="")
+        except Exception as e:
+            console.print(f"[bold red]❌ Failed to undo: {str(e)}[/]")
             
     def do_cd(self, arg):
         do_cd(self, arg, self.command_history)  
