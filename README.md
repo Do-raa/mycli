@@ -4,6 +4,8 @@
 A **Python-powered command shell** that enhances the Windows command-line experience with modern features like **undo functionality**, **command suggestions**, and **rich visual feedback**. Designed for both **beginners** and **power users**.
 
 ## ✨ Key Features
+- **Interactive Mode** 💬 - A guided experience for executing commands
+- **Autocorrection** 🎯 - Detects and corrects common typos in commands
 - **Undo Command** ⏪ - Revert file operations, directory changes, and more
 - **Smart Suggestions** 💡 - Automatic correction for mistyped commands
 - **Rich Visual Output** 🎨 - Color-coded messages and formatted results
@@ -20,8 +22,8 @@ A **Python-powered command shell** that enhances the Windows command-line experi
 ### Quick Start
 ```sh
 # Clone the repository
-git clone https://github.com/yourusername/windows-enhanced-shell.git
-cd windows-enhanced-shell
+git clone https://github.com/Do-raa/mycli.git
+cd CLI
 
 # Create and activate virtual environment
 python -m venv venv
