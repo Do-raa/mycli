@@ -28,6 +28,8 @@ cd CLI
 # Create and activate virtual environment
 python -m venv venv
 venv\Scripts\activate
+source venv/bin/activate   (on Mac/Linux)  
+venv\Scripts\activate  (on Windows)
 
 # Install dependencies
 pip install -r requirements.txt
