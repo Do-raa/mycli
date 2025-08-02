@@ -14,6 +14,9 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 import platform
 from rich.prompt import Prompt, Confirm 
 
+from prompt_toolkit.shortcuts import input_dialog
+# from assistant import ask_gpt_assistant
+
 console = Console()      
 SUCCESS_STYLE = Style(color="green", bold=True)
 ERROR_STYLE = Style(color="red", bold=True)
@@ -1088,3 +1091,31 @@ def do_help(self, arg: str):
             console.print("[bold cyan]Available commands:[/]")
             for cmd, desc in self.commands.items():
                 console.print(f"- [bold magenta]{cmd}[/]: {desc}")
+                
+# def do_ask(self, arg):
+#     """Prompt user to ask the assistant and return GPT response"""
+#     user_question = input_dialog(
+#         title="🤖 Ask CLI Assistant",
+#         text="Ask something related to CLI commands..."
+#     ).run()
+
+#     if user_question:
+#         answer = ask_gpt_assistant(user_question)
+#         console.print(Panel.fit(answer, title="🤖 GPT Assistant", border_style="cyan"))
+
+def do_ask(self, arg):
+    """Ask the smart GPT assistant about CLI commands"""
+    from assistant import ask_gpt_assistant
+
+    user_question = Prompt.ask("🤖 [bold cyan]Ask the assistant a CLI-related question[/]")
+    if not user_question:
+        return
+
+    console.print("[bold magenta]🔍 Searching...[/]")
+    answer = ask_gpt_assistant(
+        user_question=user_question,
+        history=self.command_history,
+        current_dir=os.getcwd()
+    )
+
+    console.print(Panel.fit(answer, title="🤖 GPT Assistant", border_style="cyan"))

@@ -76,6 +76,7 @@ def initialize_powershell():
         "exit": "Exit the shell",
         "help": "Show available commands or details for a specific command using '<command> --help'.",
         "undo": "Undo the last command",
+        "ask": "Ask the CLI assistant a question about commands or usage. Type 'ask' to start.",
     }
     
     completer = ContextAwareCompleter(commands)

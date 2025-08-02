@@ -18,7 +18,7 @@ from rich.style import Style
 from rich.prompt import Prompt, Confirm 
 
 from init import initialize_powershell
-from commands import (do_cd, do_ls, do_dir, do_tree, do_taskkill, do_tasklist, do_systeminfo, do_whoami, do_hostname, do_touch, do_mkdir, do_rmdir, do_rm, do_rename, do_copy, do_move, do_ping, do_nslookup, do_ipconfig, do_tracert, do_netstat, do_diskpart, do_chkdsk, do_wmic, do_append, do_exit, do_help) 
+from commands import (do_cd, do_ls, do_dir, do_tree, do_taskkill, do_tasklist, do_systeminfo, do_whoami, do_hostname, do_touch, do_mkdir, do_rmdir, do_rm, do_rename, do_copy, do_move, do_ping, do_nslookup, do_ipconfig, do_tracert, do_netstat, do_diskpart, do_chkdsk, do_wmic, do_append, do_exit, do_help,  do_ask) 
 
 app = typer.Typer()
 console = Console()
@@ -406,6 +406,10 @@ class PowerShell(cmd.Cmd):
 
     def do_help(self, arg):
         do_help(self, arg)
+        
+    def do_ask(self, arg):
+        """Ask the GPT assistant about a CLI command"""
+        do_ask(self, arg)
         
 @app.command("shell")
 def start_shell():
