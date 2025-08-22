@@ -6,6 +6,7 @@ import shlex
 import time
 from rich.console import Console
 from rich.prompt import Prompt, Confirm
+from rich.markdown import Markdown
 from rich.table import Table
 from rich.panel import Panel
 from rich.spinner import Spinner
@@ -1091,31 +1092,64 @@ def do_help(self, arg: str):
             console.print("[bold cyan]Available commands:[/]")
             for cmd, desc in self.commands.items():
                 console.print(f"- [bold magenta]{cmd}[/]: {desc}")
-                
-# def do_ask(self, arg):
-#     """Prompt user to ask the assistant and return GPT response"""
-#     user_question = input_dialog(
-#         title="🤖 Ask CLI Assistant",
-#         text="Ask something related to CLI commands..."
-#     ).run()
-
-#     if user_question:
-#         answer = ask_gpt_assistant(user_question)
-#         console.print(Panel.fit(answer, title="🤖 GPT Assistant", border_style="cyan"))
 
 def do_ask(self, arg):
-    """Ask the smart GPT assistant about CLI commands"""
-    from assistant import ask_gpt_assistant
-
-    user_question = Prompt.ask("🤖 [bold cyan]Ask the assistant a CLI-related question[/]")
-    if not user_question:
-        return
-
-    console.print("[bold magenta]🔍 Searching...[/]")
-    answer = ask_gpt_assistant(
-        user_question=user_question,
-        history=self.command_history,
-        current_dir=os.getcwd()
-    )
-
-    console.print(Panel.fit(answer, title="🤖 GPT Assistant", border_style="cyan"))
+    """Start a continuous conversation with the Expert AI Agent"""
+    from assistant import ask_gpt_assistant, clear_conversation
+    
+    console.print("[bold cyan]🤖 Expert AI Agent Activated[/]")
+    console.print("[yellow]Type 'exit', 'quit', or 'stop' to end the conversation[/]")
+    
+    # Clear any previous conversation
+    clear_conversation()
+    
+    while True:
+        try:
+            user_question = Prompt.ask("💬 [bold cyan]Your question[/]")
+            
+            # Check for exit conditions
+            if user_question.lower() in ['exit', 'quit', 'stop', 'end']:
+                console.print("[green]👋 Ending conversation. Goodbye![/]")
+                break
+                
+            if not user_question.strip():
+                continue
+                
+            # Get assistant response
+            answer = ask_gpt_assistant(
+                user_question=user_question,
+                current_dir=os.getcwd()
+            )
+            
+            # Display response
+            formatted = Markdown(answer, style="white")
+            console.print(
+                Panel.fit(
+                    formatted,
+                    title="🤖 Expert AI Agent",
+                    title_align="left",
+                    border_style="cyan",
+                    padding=(1, 2),
+                )
+            )
+            
+            # Ask if user wants to continue
+            continue_chat = Prompt.ask(
+                "➡️  [bold cyan]Ask another question?[/] (yes/no)", 
+                choices=["y", "n", "yes", "no"], 
+                default="y"
+            )
+            
+            if continue_chat.lower() in ['n', 'no']:
+                console.print("[green]👋 Conversation ended. Goodbye![/]")
+                break
+                
+        except KeyboardInterrupt:
+            console.print("\n[yellow]⏹️  Conversation interrupted.[/]")
+            break
+        except Exception as e:
+            console.print(f"[red]❌ Error: {e}[/]")
+            break
+    
+    # Clear conversation at end
+    clear_conversation()
