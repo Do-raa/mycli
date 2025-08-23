@@ -53,5 +53,35 @@ pip install -r requirements.txt
 # Launch the enhanced shell with AI Agent
 python cli/main.py
 
+
+## 🤖 Using the AI Agent
+Once in the shell, simply type ask to start interacting with the AI agent:
+
+bash
+C:\> ask
+🤖 Expert AI Agent Activated
+Type 'exit', 'quit', or 'stop' to end the conversation
+
+💬 Your question: how do I check my IP address?
+🤖 Assistant: Use the 'ipconfig' command to display your IP configuration...
+
+➡️ Ask another question? (yes/no) [y/n/yes/no] (y): y
+
+💬 Your question: what about showing all network adapters?
+🤖 Assistant: Add the '/all' flag: 'ipconfig /all' shows detailed information for all network adapters...
+The assistant understands context and maintains conversation memory, making it perfect for learning Windows command line through natural dialogue.
+
+## 🎯 Example AI Interactions
+**"How do I create a scheduled task?"**
+
+**"Explain the difference between PowerShell and CMD"**
+
+**"What's the best way to search for files containing specific text?"**
+
+**"How can I monitor active network connections?"**
+
+**"Show me how to set environment variables permanently"**
+
 Happy Coding! 🚀
+
 
